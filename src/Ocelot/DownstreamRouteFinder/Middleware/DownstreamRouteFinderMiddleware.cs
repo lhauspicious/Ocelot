@@ -1,69 +1,59 @@
-using System.Linq;
-using System.Security.Cryptography.X509Certificates;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Ocelot.Configuration.Provider;
 using Ocelot.DownstreamRouteFinder.Finder;
 using Ocelot.Infrastructure.Extensions;
-using Ocelot.Infrastructure.RequestData;
 using Ocelot.Logging;
 using Ocelot.Middleware;
-using Ocelot.Utilities;
+using Ocelot.Middleware.Multiplexer;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace Ocelot.DownstreamRouteFinder.Middleware
 {
     public class DownstreamRouteFinderMiddleware : OcelotMiddleware
     {
-        private readonly RequestDelegate _next;
-        private readonly IDownstreamRouteFinder _downstreamRouteFinder;
-        private readonly IOcelotLogger _logger;
-        private readonly IOcelotConfigurationProvider _configProvider;
+        private readonly OcelotRequestDelegate _next;
+        private readonly IDownstreamRouteProviderFactory _factory;
+        private readonly IMultiplexer _multiplexer;
 
-
-        public DownstreamRouteFinderMiddleware(RequestDelegate next,
+        public DownstreamRouteFinderMiddleware(OcelotRequestDelegate next,
             IOcelotLoggerFactory loggerFactory,
-            IDownstreamRouteFinder downstreamRouteFinder, 
-            IRequestScopedDataRepository requestScopedDataRepository,
-            IOcelotConfigurationProvider configProvider)
-            :base(requestScopedDataRepository)
+            IDownstreamRouteProviderFactory downstreamRouteFinder,
+            IMultiplexer multiplexer)
+                : base(loggerFactory.CreateLogger<DownstreamRouteFinderMiddleware>())
         {
-            _configProvider = configProvider;
+            _multiplexer = multiplexer;
             _next = next;
-            _downstreamRouteFinder = downstreamRouteFinder;
-            _logger = loggerFactory.CreateLogger<DownstreamRouteFinderMiddleware>();
+            _factory = downstreamRouteFinder;
         }
 
-        public async Task Invoke(HttpContext context)
+        public async Task Invoke(DownstreamContext context)
         {
-            var upstreamUrlPath = context.Request.Path.ToString();
+            var upstreamUrlPath = context.HttpContext.Request.Path.ToString();
 
-            //todo make this getting config its own middleware one day?
-            var configuration = await _configProvider.Get(); 
-            if(configuration.IsError)
-            {
-                _logger.LogError($"{MiddlewareName} setting pipeline errors. IOcelotConfigurationProvider returned {configuration.Errors.ToErrorString()}");
-                SetPipelineError(configuration.Errors);
-            }
+            var upstreamQueryString = context.HttpContext.Request.QueryString.ToString();
 
-            SetServiceProviderConfigurationForThisRequest(configuration.Data.ServiceProviderConfiguration);
+            var upstreamHost = context.HttpContext.Request.Headers["Host"];
 
-            _logger.LogDebug("upstream url path is {upstreamUrlPath}", upstreamUrlPath);
+            Logger.LogDebug($"Upstream url path is {upstreamUrlPath}");
 
-            var downstreamRoute = _downstreamRouteFinder.FindDownstreamRoute(upstreamUrlPath, context.Request.Method, configuration.Data);
+            var provider = _factory.Get(context.Configuration);
+
+            var downstreamRoute = provider.Get(upstreamUrlPath, upstreamQueryString, context.HttpContext.Request.Method, context.Configuration, upstreamHost);
 
             if (downstreamRoute.IsError)
             {
-                _logger.LogError($"{MiddlewareName} setting pipeline errors. IDownstreamRouteFinder returned {downstreamRoute.Errors.ToErrorString()}");
+                Logger.LogWarning($"{MiddlewareName} setting pipeline errors. IDownstreamRouteFinder returned {downstreamRoute.Errors.ToErrorString()}");
 
-                SetPipelineError(downstreamRoute.Errors);
+                SetPipelineError(context, downstreamRoute.Errors);
                 return;
             }
 
-            _logger.LogDebug("downstream template is {downstreamRoute.Data.ReRoute.DownstreamPath}", downstreamRoute.Data.ReRoute.DownstreamPathTemplate);
+            var downstreamPathTemplates = string.Join(", ", downstreamRoute.Data.ReRoute.DownstreamReRoute.Select(r => r.DownstreamPathTemplate.Value));
 
-            SetDownstreamRouteForThisRequest(downstreamRoute.Data);
+            Logger.LogDebug($"downstream templates are {downstreamPathTemplates}");
 
-            await _next.Invoke(context);
+            context.TemplatePlaceholderNameAndValues = downstreamRoute.Data.TemplatePlaceholderNameAndValues;
+
+            await _multiplexer.Multiplex(context, downstreamRoute.Data.ReRoute, _next);
         }
     }
 }

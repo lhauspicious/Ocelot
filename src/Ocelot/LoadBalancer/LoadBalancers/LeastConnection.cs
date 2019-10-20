@@ -1,10 +1,10 @@
-﻿using System;
+﻿using Ocelot.Middleware;
+using Ocelot.Responses;
+using Ocelot.Values;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Ocelot.Errors;
-using Ocelot.Responses;
-using Ocelot.Values;
 
 namespace Ocelot.LoadBalancer.LoadBalancers
 {
@@ -22,22 +22,22 @@ namespace Ocelot.LoadBalancer.LoadBalancers
             _leases = new List<Lease>();
         }
 
-        public async Task<Response<HostAndPort>> Lease()
+        public async Task<Response<ServiceHostAndPort>> Lease(DownstreamContext downstreamContext)
         {
             var services = await _services.Invoke();
 
             if (services == null)
             {
-                return new ErrorResponse<HostAndPort>(new List<Error>() { new ServicesAreNullError($"services were null for {_serviceName}") });
+                return new ErrorResponse<ServiceHostAndPort>(new ServicesAreNullError($"services were null for {_serviceName}"));
             }
 
             if (!services.Any())
             {
-                return new ErrorResponse<HostAndPort>(new List<Error>() { new ServicesAreEmptyError($"services were empty for {_serviceName}") });
+                return new ErrorResponse<ServiceHostAndPort>(new ServicesAreEmptyError($"services were empty for {_serviceName}"));
             }
 
-            lock(_syncLock)
-            {        
+            lock (_syncLock)
+            {
                 //todo - maybe this should be moved somewhere else...? Maybe on a repeater on seperate thread? loop every second and update or something?
                 UpdateServices(services);
 
@@ -48,14 +48,14 @@ namespace Ocelot.LoadBalancer.LoadBalancers
                 leaseWithLeastConnections = AddConnection(leaseWithLeastConnections);
 
                 _leases.Add(leaseWithLeastConnections);
-            
-                return new OkResponse<HostAndPort>(new HostAndPort(leaseWithLeastConnections.HostAndPort.DownstreamHost, leaseWithLeastConnections.HostAndPort.DownstreamPort));
+
+                return new OkResponse<ServiceHostAndPort>(new ServiceHostAndPort(leaseWithLeastConnections.HostAndPort.DownstreamHost, leaseWithLeastConnections.HostAndPort.DownstreamPort));
             }
         }
 
-        public void Release(HostAndPort hostAndPort)
+        public void Release(ServiceHostAndPort hostAndPort)
         {
-            lock(_syncLock)
+            lock (_syncLock)
             {
                 var matchingLease = _leases.FirstOrDefault(l => l.HostAndPort.DownstreamHost == hostAndPort.DownstreamHost
                     && l.HostAndPort.DownstreamPort == hostAndPort.DownstreamPort);
@@ -123,7 +123,7 @@ namespace Ocelot.LoadBalancer.LoadBalancers
 
                 foreach (var service in services)
                 {
-                    var exists = _leases.FirstOrDefault(l => l.HostAndPort.ToString() == service.HostAndPort.ToString());
+                    var exists = _leases.FirstOrDefault(l => l.HostAndPort.DownstreamHost == service.HostAndPort.DownstreamHost && l.HostAndPort.DownstreamPort == service.HostAndPort.DownstreamPort);
 
                     if (exists == null)
                     {

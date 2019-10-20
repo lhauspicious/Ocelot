@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Security.Claims;
-using IdentityServer4.AccessTokenValidation;
+﻿using IdentityServer4.AccessTokenValidation;
 using IdentityServer4.Models;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -12,13 +6,18 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Primitives;
 using Ocelot.Configuration.File;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net;
+using System.Security.Claims;
 using TestStack.BDDfy;
 using Xunit;
 
 namespace Ocelot.AcceptanceTests
 {
-    using IdentityServer4;
     using IdentityServer4.Test;
+    using Shouldly;
 
     public class ClaimsToQueryStringForwardingTests : IDisposable
     {
@@ -27,6 +26,7 @@ namespace Ocelot.AcceptanceTests
         private readonly Steps _steps;
         private Action<IdentityServerAuthenticationOptions> _options;
         private string _identityServerRootUrl = "http://localhost:57888";
+        private string _downstreamQueryString;
 
         public ClaimsToQueryStringForwardingTests()
         {
@@ -44,28 +44,34 @@ namespace Ocelot.AcceptanceTests
         [Fact]
         public void should_return_response_200_and_foward_claim_as_query_string()
         {
-           var user = new TestUser()
-           {
-               Username = "test",
-               Password = "test",
-               SubjectId = "registered|1231231",
-               Claims = new List<Claim>
+            var user = new TestUser()
+            {
+                Username = "test",
+                Password = "test",
+                SubjectId = "registered|1231231",
+                Claims = new List<Claim>
                {
                    new Claim("CustomerId", "123"),
                    new Claim("LocationId", "1")
                }
-           };
+            };
 
-           var configuration = new FileConfiguration
-           {
-               ReRoutes = new List<FileReRoute>
+            var configuration = new FileConfiguration
+            {
+                ReRoutes = new List<FileReRoute>
                    {
                        new FileReRoute
                        {
                            DownstreamPathTemplate = "/",
-                           DownstreamPort = 57876,
+                           DownstreamHostAndPorts = new List<FileHostAndPort>
+                           {
+                               new FileHostAndPort
+                               {
+                                   Host = "localhost",
+                                   Port = 57876,
+                               }
+                           },
                            DownstreamScheme = "http",
-                           DownstreamHost = "localhost",
                            UpstreamPathTemplate = "/",
                            UpstreamHttpMethod = new List<string> { "Get" },
                            AuthenticationOptions = new FileAuthenticationOptions
@@ -85,18 +91,83 @@ namespace Ocelot.AcceptanceTests
                            }
                        }
                    }
-           };
+            };
 
-           this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:57888", "api", AccessTokenType.Jwt, user))
-               .And(x => x.GivenThereIsAServiceRunningOn("http://localhost:57876", 200))
-               .And(x => _steps.GivenIHaveAToken("http://localhost:57888"))
-               .And(x => _steps.GivenThereIsAConfiguration(configuration))
-               .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
-               .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
-               .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
-               .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.OK))
-               .And(x => _steps.ThenTheResponseBodyShouldBe("CustomerId: 123 LocationId: 1 UserType: registered UserId: 1231231"))
-               .BDDfy();
+            this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:57888", "api", AccessTokenType.Jwt, user))
+                .And(x => x.GivenThereIsAServiceRunningOn("http://localhost:57876", 200))
+                .And(x => _steps.GivenIHaveAToken("http://localhost:57888"))
+                .And(x => _steps.GivenThereIsAConfiguration(configuration))
+                .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
+                .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
+                .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
+                .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.OK))
+                .And(x => _steps.ThenTheResponseBodyShouldBe("CustomerId: 123 LocationId: 1 UserType: registered UserId: 1231231"))
+                .BDDfy();
+        }
+
+        [Fact]
+        public void should_return_response_200_and_foward_claim_as_query_string_and_preserve_original_string()
+        {
+            var user = new TestUser()
+            {
+                Username = "test",
+                Password = "test",
+                SubjectId = "registered|1231231",
+                Claims = new List<Claim>
+               {
+                   new Claim("CustomerId", "123"),
+                   new Claim("LocationId", "1")
+               }
+            };
+
+            var configuration = new FileConfiguration
+            {
+                ReRoutes = new List<FileReRoute>
+                   {
+                       new FileReRoute
+                       {
+                           DownstreamPathTemplate = "/",
+                           DownstreamHostAndPorts = new List<FileHostAndPort>
+                           {
+                               new FileHostAndPort
+                               {
+                                   Host = "localhost",
+                                   Port = 57876,
+                               }
+                           },
+                           DownstreamScheme = "http",
+                           UpstreamPathTemplate = "/",
+                           UpstreamHttpMethod = new List<string> { "Get" },
+                           AuthenticationOptions = new FileAuthenticationOptions
+                           {
+                               AuthenticationProviderKey = "Test",
+                               AllowedScopes = new List<string>
+                               {
+                                   "openid", "offline_access", "api"
+                               },
+                           },
+                           AddQueriesToRequest =
+                           {
+                               {"CustomerId", "Claims[CustomerId] > value"},
+                               {"LocationId", "Claims[LocationId] > value"},
+                               {"UserType", "Claims[sub] > value[0] > |"},
+                               {"UserId", "Claims[sub] > value[1] > |"}
+                           }
+                       }
+                   }
+            };
+
+            this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:57888", "api", AccessTokenType.Jwt, user))
+                .And(x => x.GivenThereIsAServiceRunningOn("http://localhost:57876", 200))
+                .And(x => _steps.GivenIHaveAToken("http://localhost:57888"))
+                .And(x => _steps.GivenThereIsAConfiguration(configuration))
+                .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
+                .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
+                .When(x => _steps.WhenIGetUrlOnTheApiGateway("/?test=1&test=2"))
+                .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.OK))
+                .And(x => _steps.ThenTheResponseBodyShouldBe("CustomerId: 123 LocationId: 1 UserType: registered UserId: 1231231"))
+                .And(_ => _downstreamQueryString.ShouldBe("?test=1&test=2&CustomerId=123&LocationId=1&UserId=1231231&UserType=registered"))
+                .BDDfy();
         }
 
         private void GivenThereIsAServiceRunningOn(string url, int statusCode)
@@ -111,6 +182,8 @@ namespace Ocelot.AcceptanceTests
                 {
                     app.Run(async context =>
                     {
+                        _downstreamQueryString = context.Request.QueryString.Value;
+
                         StringValues customerId;
                         context.Request.Query.TryGetValue("CustomerId", out customerId);
 
@@ -150,7 +223,7 @@ namespace Ocelot.AcceptanceTests
                         {
                             new ApiResource
                             {
-								Name = apiName,
+                                Name = apiName,
                                 Description = "My API",
                                 Enabled = true,
                                 DisplayName = "test",

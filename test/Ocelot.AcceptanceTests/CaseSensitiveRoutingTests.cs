@@ -1,23 +1,21 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Ocelot.Configuration.File;
-using TestStack.BDDfy;
-using Xunit;
-
 namespace Ocelot.AcceptanceTests
 {
+    using Microsoft.AspNetCore.Http;
+    using Ocelot.Configuration.File;
+    using System;
+    using System.Collections.Generic;
+    using System.Net;
+    using TestStack.BDDfy;
+    using Xunit;
+
     public class CaseSensitiveRoutingTests : IDisposable
     {
-        private IWebHost _builder;
         private readonly Steps _steps;
+        private readonly ServiceHandler _serviceHandler;
 
         public CaseSensitiveRoutingTests()
         {
+            _serviceHandler = new ServiceHandler();
             _steps = new Steps();
         }
 
@@ -31,16 +29,22 @@ namespace Ocelot.AcceptanceTests
                         new FileReRoute
                         {
                             DownstreamPathTemplate = "/api/products/{productId}",
-                            DownstreamPort = 51879,
+                            DownstreamHostAndPorts = new List<FileHostAndPort>
+                            {
+                                new FileHostAndPort
+                                {
+                                    Host = "localhost",
+                                    Port = 51877,
+                                }
+                            },
                             DownstreamScheme = "http",
-                            DownstreamHost = "localhost",
                             UpstreamPathTemplate = "/products/{productId}",
                             UpstreamHttpMethod = new List<string> { "Get" },
                         }
                     }
             };
 
-            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51879", "/api/products/1", 200, "Some Product"))
+            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51877", "/api/products/1", 200, "Some Product"))
                 .And(x => _steps.GivenThereIsAConfiguration(configuration))
                 .And(x => _steps.GivenOcelotIsRunning())
                 .When(x => _steps.WhenIGetUrlOnTheApiGateway("/PRODUCTS/1"))
@@ -58,9 +62,15 @@ namespace Ocelot.AcceptanceTests
                         new FileReRoute
                         {
                             DownstreamPathTemplate = "/api/products/{productId}",
-                            DownstreamPort = 51879,
+                            DownstreamHostAndPorts = new List<FileHostAndPort>
+                            {
+                                new FileHostAndPort
+                                {
+                                    Host = "localhost",
+                                    Port = 51877,
+                                }
+                            },
                             DownstreamScheme = "http",
-                            DownstreamHost = "localhost",
                             UpstreamPathTemplate = "/products/{productId}",
                             UpstreamHttpMethod = new List<string> { "Get" },
                             ReRouteIsCaseSensitive = false,
@@ -68,7 +78,7 @@ namespace Ocelot.AcceptanceTests
                     }
             };
 
-            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51879", "/api/products/1", 200, "Some Product"))
+            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51877", "/api/products/1", 200, "Some Product"))
                 .And(x => _steps.GivenThereIsAConfiguration(configuration))
                 .And(x => _steps.GivenOcelotIsRunning())
                 .When(x => _steps.WhenIGetUrlOnTheApiGateway("/PRODUCTS/1"))
@@ -86,9 +96,15 @@ namespace Ocelot.AcceptanceTests
                         new FileReRoute
                         {
                             DownstreamPathTemplate = "/api/products/{productId}",
-                            DownstreamPort = 51879,
+                            DownstreamHostAndPorts = new List<FileHostAndPort>
+                            {
+                                new FileHostAndPort
+                                {
+                                    Host = "localhost",
+                                    Port = 51877,
+                                }
+                            },
                             DownstreamScheme = "http",
-                            DownstreamHost = "localhost",
                             UpstreamPathTemplate = "/products/{productId}",
                             UpstreamHttpMethod = new List<string> { "Get" },
                             ReRouteIsCaseSensitive = true,
@@ -96,7 +112,7 @@ namespace Ocelot.AcceptanceTests
                     }
             };
 
-            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51879", "/api/products/1", 200, "Some Product"))
+            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51877", "/api/products/1", 200, "Some Product"))
                 .And(x => _steps.GivenThereIsAConfiguration(configuration))
                 .And(x => _steps.GivenOcelotIsRunning())
                 .When(x => _steps.WhenIGetUrlOnTheApiGateway("/PRODUCTS/1"))
@@ -114,9 +130,15 @@ namespace Ocelot.AcceptanceTests
                         new FileReRoute
                         {
                             DownstreamPathTemplate = "/api/products/{productId}",
-                            DownstreamPort = 51879,
+                            DownstreamHostAndPorts = new List<FileHostAndPort>
+                            {
+                                new FileHostAndPort
+                                {
+                                    Host = "localhost",
+                                    Port = 51877,
+                                }
+                            },
                             DownstreamScheme = "http",
-                            DownstreamHost = "localhost",
                             UpstreamPathTemplate = "/PRODUCTS/{productId}",
                             UpstreamHttpMethod = new List<string> { "Get" },
                             ReRouteIsCaseSensitive = true,
@@ -124,7 +146,7 @@ namespace Ocelot.AcceptanceTests
                     }
             };
 
-            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51879", "/api/products/1", 200, "Some Product"))
+            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51877", "/api/products/1", 200, "Some Product"))
                 .And(x => _steps.GivenThereIsAConfiguration(configuration))
                 .And(x => _steps.GivenOcelotIsRunning())
                 .When(x => _steps.WhenIGetUrlOnTheApiGateway("/PRODUCTS/1"))
@@ -142,9 +164,15 @@ namespace Ocelot.AcceptanceTests
                         new FileReRoute
                         {
                             DownstreamPathTemplate = "/api/products/{productId}",
-                            DownstreamPort = 51879,
+                            DownstreamHostAndPorts = new List<FileHostAndPort>
+                            {
+                                new FileHostAndPort
+                                {
+                                    Host = "localhost",
+                                    Port = 51877,
+                                }
+                            },
                             DownstreamScheme = "http",
-                            DownstreamHost = "localhost",
                             UpstreamPathTemplate = "/products/{productId}",
                             UpstreamHttpMethod = new List<string> { "Get" },
                             ReRouteIsCaseSensitive = true,
@@ -152,7 +180,7 @@ namespace Ocelot.AcceptanceTests
                     }
             };
 
-            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51879", "/api/products/1", 200, "Some Product"))
+            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51877", "/api/products/1", 200, "Some Product"))
                 .And(x => _steps.GivenThereIsAConfiguration(configuration))
                 .And(x => _steps.GivenOcelotIsRunning())
                 .When(x => _steps.WhenIGetUrlOnTheApiGateway("/PRODUCTS/1"))
@@ -170,9 +198,15 @@ namespace Ocelot.AcceptanceTests
                         new FileReRoute
                         {
                             DownstreamPathTemplate = "/api/products/{productId}",
-                            DownstreamPort = 51879,
+                            DownstreamHostAndPorts = new List<FileHostAndPort>
+                            {
+                                new FileHostAndPort
+                                {
+                                    Host = "localhost",
+                                    Port = 51877,
+                                }
+                            },
                             DownstreamScheme = "http",
-                            DownstreamHost = "localhost",
                             UpstreamPathTemplate = "/PRODUCTS/{productId}",
                             UpstreamHttpMethod = new List<string> { "Get" },
                             ReRouteIsCaseSensitive = true,
@@ -180,7 +214,7 @@ namespace Ocelot.AcceptanceTests
                     }
             };
 
-            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51879", "/api/products/1", 200, "Some Product"))
+            this.Given(x => x.GivenThereIsAServiceRunningOn("http://localhost:51877", "/api/products/1", 200, "Some Product"))
                 .And(x => _steps.GivenThereIsAConfiguration(configuration))
                 .And(x => _steps.GivenOcelotIsRunning())
                 .When(x => _steps.WhenIGetUrlOnTheApiGateway("/PRODUCTS/1"))
@@ -190,29 +224,16 @@ namespace Ocelot.AcceptanceTests
 
         private void GivenThereIsAServiceRunningOn(string baseUrl, string basePath, int statusCode, string responseBody)
         {
-            _builder = new WebHostBuilder()
-                .UseUrls(baseUrl)
-                .UseKestrel()
-                .UseContentRoot(Directory.GetCurrentDirectory())
-                .UseIISIntegration()
-                .UseUrls(baseUrl)
-                .Configure(app =>
-                {
-                    app.UsePathBase(basePath);
-                    app.Run(async context =>
-                    {
-                        context.Response.StatusCode = statusCode;
-                        await context.Response.WriteAsync(responseBody);
-                    });
-                })
-                .Build();
-
-            _builder.Start();
+            _serviceHandler.GivenThereIsAServiceRunningOn(baseUrl, basePath, async context =>
+            {
+                context.Response.StatusCode = statusCode;
+                await context.Response.WriteAsync(responseBody);
+            });
         }
 
         public void Dispose()
         {
-            _builder?.Dispose();
+            _serviceHandler?.Dispose();
             _steps.Dispose();
         }
     }

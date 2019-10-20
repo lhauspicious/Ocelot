@@ -1,30 +1,31 @@
 ﻿namespace Ocelot.UnitTests.Request.Mapper
 {
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Net.Http;
-
     using Microsoft.AspNetCore.Http;
     using Microsoft.AspNetCore.Http.Internal;
     using Microsoft.Extensions.Primitives;
     using Ocelot.Request.Mapper;
     using Ocelot.Responses;
-    using TestStack.BDDfy;
-    using Xunit;
     using Shouldly;
     using System;
+    using System.Collections.Generic;
     using System.IO;
+    using System.Linq;
+    using System.Net.Http;
+    using System.Security.Cryptography;
     using System.Text;
+    using System.Threading.Tasks;
+    using TestStack.BDDfy;
+    using Xunit;
 
     public class RequestMapperTests
     {
-        readonly HttpRequest _inputRequest;
+        private readonly HttpRequest _inputRequest;
 
-        readonly RequestMapper _requestMapper;
+        private readonly RequestMapper _requestMapper;
 
-        Response<HttpRequestMessage> _mappedRequest;
+        private Response<HttpRequestMessage> _mappedRequest;
 
-        List<KeyValuePair<string, StringValues>> _inputHeaders = null;
+        private List<KeyValuePair<string, StringValues>> _inputHeaders = null;
 
         public RequestMapperTests()
         {
@@ -118,17 +119,182 @@
         }
 
         [Fact]
-        public void Should_map_content_type_header()
+        public void Should_handle_no_content()
         {
+            this.Given(_ => GivenTheInputRequestHasNullContent())
+                .And(_ => GivenTheInputRequestHasMethod("GET"))
+                .And(_ => GivenTheInputRequestHasAValidUri())
+                .When(_ => WhenMapped())
+                .Then(_ => ThenNoErrorIsReturned())
+                .And(_ => ThenTheMappedRequestHasNoContent())
+                .BDDfy();
+        }
+
+        [Fact]
+        public void Should_handle_no_content_type()
+        {
+            this.Given(_ => GivenTheInputRequestHasNoContentType())
+                .And(_ => GivenTheInputRequestHasMethod("GET"))
+                .And(_ => GivenTheInputRequestHasAValidUri())
+                .When(_ => WhenMapped())
+                .Then(_ => ThenNoErrorIsReturned())
+                .And(_ => ThenTheMappedRequestHasNoContent())
+                .BDDfy();
+        }
+
+        [Fact]
+        public void Should_handle_no_content_length()
+        {
+            this.Given(_ => GivenTheInputRequestHasNoContentLength())
+                .And(_ => GivenTheInputRequestHasMethod("GET"))
+                .And(_ => GivenTheInputRequestHasAValidUri())
+                .When(_ => WhenMapped())
+                .Then(_ => ThenNoErrorIsReturned())
+                .And(_ => ThenTheMappedRequestHasNoContent())
+                .BDDfy();
+        }
+
+        private void GivenTheInputRequestHasNoContentLength()
+        {
+            _inputRequest.ContentLength = null;
+        }
+
+        private void GivenTheInputRequestHasNoContentType()
+        {
+            _inputRequest.ContentType = null;
+        }
+
+        [Fact]
+        public void Should_map_content_headers()
+        {
+            byte[] md5bytes = new byte[0];
+            using (var md5 = MD5.Create())
+            {
+                md5bytes = md5.ComputeHash(Encoding.UTF8.GetBytes("some md5"));
+            }
+
             this.Given(_ => GivenTheInputRequestHasContent("This is my content"))
                 .And(_ => GivenTheContentTypeIs("application/json"))
+                .And(_ => GivenTheContentEncodingIs("gzip, compress"))
+                .And(_ => GivenTheContentLanguageIs("english"))
+                .And(_ => GivenTheContentLocationIs("/my-receipts/38"))
+                .And(_ => GivenTheContentRangeIs("bytes 1-2/*"))
+                .And(_ => GivenTheContentDispositionIs("inline"))
+                .And(_ => GivenTheContentMD5Is(md5bytes))
                 .And(_ => GivenTheInputRequestHasMethod("GET"))
                 .And(_ => GivenTheInputRequestHasAValidUri())
                 .When(_ => WhenMapped())
                 .Then(_ => ThenNoErrorIsReturned())
                 .And(_ => ThenTheMappedRequestHasContentTypeHeader("application/json"))
+                .And(_ => ThenTheMappedRequestHasContentEncodingHeader("gzip", "compress"))
+                .And(_ => ThenTheMappedRequestHasContentLanguageHeader("english"))
+                .And(_ => ThenTheMappedRequestHasContentLocationHeader("/my-receipts/38"))
+                .And(_ => ThenTheMappedRequestHasContentMD5Header(md5bytes))
+                .And(_ => ThenTheMappedRequestHasContentRangeHeader())
+                .And(_ => ThenTheMappedRequestHasContentDispositionHeader("inline"))
                 .And(_ => ThenTheMappedRequestHasContentSize("This is my content".Length))
+                .And(_ => ThenTheContentHeadersAreNotAddedToNonContentHeaders())
                 .BDDfy();
+        }
+
+        [Fact]
+        public void should_not_add_content_headers()
+        {
+            this.Given(_ => GivenTheInputRequestHasContent("This is my content"))
+                .And(_ => GivenTheContentTypeIs("application/json"))
+                .And(_ => GivenTheInputRequestHasMethod("POST"))
+                .And(_ => GivenTheInputRequestHasAValidUri())
+                .When(_ => WhenMapped())
+                .Then(_ => ThenNoErrorIsReturned())
+                .And(_ => ThenTheMappedRequestHasContentTypeHeader("application/json"))
+                .And(_ => ThenTheMappedRequestHasContentSize("This is my content".Length))
+                .And(_ => ThenTheOtherContentTypeHeadersAreNotMapped())
+                .BDDfy();
+        }
+
+        private void ThenTheContentHeadersAreNotAddedToNonContentHeaders()
+        {
+            _mappedRequest.Data.Headers.ShouldNotContain(x => x.Key == "Content-Disposition");
+            _mappedRequest.Data.Headers.ShouldNotContain(x => x.Key == "Content-ContentMD5");
+            _mappedRequest.Data.Headers.ShouldNotContain(x => x.Key == "Content-ContentRange");
+            _mappedRequest.Data.Headers.ShouldNotContain(x => x.Key == "Content-ContentLanguage");
+            _mappedRequest.Data.Headers.ShouldNotContain(x => x.Key == "Content-ContentEncoding");
+            _mappedRequest.Data.Headers.ShouldNotContain(x => x.Key == "Content-ContentLocation");
+            _mappedRequest.Data.Headers.ShouldNotContain(x => x.Key == "Content-Length");
+            _mappedRequest.Data.Headers.ShouldNotContain(x => x.Key == "Content-Type");
+        }
+
+        private void ThenTheOtherContentTypeHeadersAreNotMapped()
+        {
+            _mappedRequest.Data.Content.Headers.ContentDisposition.ShouldBeNull();
+            _mappedRequest.Data.Content.Headers.ContentMD5.ShouldBeNull();
+            _mappedRequest.Data.Content.Headers.ContentRange.ShouldBeNull();
+            _mappedRequest.Data.Content.Headers.ContentLanguage.ShouldBeEmpty();
+            _mappedRequest.Data.Content.Headers.ContentEncoding.ShouldBeEmpty();
+            _mappedRequest.Data.Content.Headers.ContentLocation.ShouldBeNull();
+        }
+
+        private void ThenTheMappedRequestHasContentDispositionHeader(string expected)
+        {
+            _mappedRequest.Data.Content.Headers.ContentDisposition.DispositionType.ShouldBe(expected);
+        }
+
+        private void GivenTheContentDispositionIs(string input)
+        {
+            _inputRequest.Headers.Add("Content-Disposition", input);
+        }
+
+        private void ThenTheMappedRequestHasContentMD5Header(byte[] expected)
+        {
+            _mappedRequest.Data.Content.Headers.ContentMD5.ShouldBe(expected);
+        }
+
+        private void GivenTheContentMD5Is(byte[] input)
+        {
+            var base64 = Convert.ToBase64String(input);
+            _inputRequest.Headers.Add("Content-MD5", base64);
+        }
+
+        private void ThenTheMappedRequestHasContentRangeHeader()
+        {
+            _mappedRequest.Data.Content.Headers.ContentRange.From.ShouldBe(1);
+            _mappedRequest.Data.Content.Headers.ContentRange.To.ShouldBe(2);
+        }
+
+        private void GivenTheContentRangeIs(string input)
+        {
+            _inputRequest.Headers.Add("Content-Range", input);
+        }
+
+        private void ThenTheMappedRequestHasContentLocationHeader(string expected)
+        {
+            _mappedRequest.Data.Content.Headers.ContentLocation.OriginalString.ShouldBe(expected);
+        }
+
+        private void GivenTheContentLocationIs(string input)
+        {
+            _inputRequest.Headers.Add("Content-Location", input);
+        }
+
+        private void ThenTheMappedRequestHasContentLanguageHeader(string expected)
+        {
+            _mappedRequest.Data.Content.Headers.ContentLanguage.First().ShouldBe(expected);
+        }
+
+        private void GivenTheContentLanguageIs(string input)
+        {
+            _inputRequest.Headers.Add("Content-Language", input);
+        }
+
+        private void ThenTheMappedRequestHasContentEncodingHeader(string expected, string expectedTwo)
+        {
+            _mappedRequest.Data.Content.Headers.ContentEncoding.ToArray()[0].ShouldBe(expected);
+            _mappedRequest.Data.Content.Headers.ContentEncoding.ToArray()[1].ShouldBe(expectedTwo);
+        }
+
+        private void GivenTheContentEncodingIs(string input)
+        {
+            _inputRequest.Headers.Add("Content-Encoding", input);
         }
 
         private void GivenTheContentTypeIs(string contentType)
@@ -144,18 +310,6 @@
         private void ThenTheMappedRequestHasContentSize(long expected)
         {
             _mappedRequest.Data.Content.Headers.ContentLength.ShouldBe(expected);
-        }
-
-        [Fact]
-        public void Should_handle_no_content()
-        {
-            this.Given(_ => GivenTheInputRequestHasNoContent())
-                .And(_ => GivenTheInputRequestHasMethod("GET"))
-                .And(_ => GivenTheInputRequestHasAValidUri())
-                .When(_ => WhenMapped())
-                .Then(_ => ThenNoErrorIsReturned())
-                .And(_ => ThenTheMappedRequestHasNoContent())
-                .BDDfy();
         }
 
         private void GivenTheInputRequestHasMethod(string method)
@@ -219,14 +373,14 @@
             _inputRequest.Body = new MemoryStream(Encoding.UTF8.GetBytes(content));
         }
 
-        private void GivenTheInputRequestHasNoContent()
+        private void GivenTheInputRequestHasNullContent()
         {
             _inputRequest.Body = null;
         }
 
-        private void WhenMapped()
+        private async Task WhenMapped()
         {
-            _mappedRequest = _requestMapper.Map(_inputRequest).GetAwaiter().GetResult();
+            _mappedRequest = await _requestMapper.Map(_inputRequest);
         }
 
         private void ThenNoErrorIsReturned()
@@ -252,12 +406,12 @@
         private void ThenTheMappedRequestHasEachHeader()
         {
             _mappedRequest.Data.Headers.Count().ShouldBe(_inputHeaders.Count);
-            foreach(var header in _mappedRequest.Data.Headers)
+            foreach (var header in _mappedRequest.Data.Headers)
             {
                 var inputHeader = _inputHeaders.First(h => h.Key == header.Key);
                 inputHeader.ShouldNotBeNull();
                 inputHeader.Value.Count().ShouldBe(header.Value.Count());
-                foreach(var inputHeaderValue in inputHeader.Value)
+                foreach (var inputHeaderValue in inputHeader.Value)
                 {
                     header.Value.Any(v => v == inputHeaderValue);
                 }

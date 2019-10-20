@@ -1,33 +1,32 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using System.Security.Claims;
-using IdentityServer4.AccessTokenValidation;
-using IdentityServer4.Models;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using Ocelot.Configuration.File;
-using TestStack.BDDfy;
-using Xunit;
-
 namespace Ocelot.AcceptanceTests
 {
-    using IdentityServer4;
+    using IdentityServer4.AccessTokenValidation;
+    using IdentityServer4.Models;
     using IdentityServer4.Test;
+    using Microsoft.AspNetCore.Builder;
+    using Microsoft.AspNetCore.Hosting;
+    using Microsoft.AspNetCore.Http;
+    using Microsoft.Extensions.DependencyInjection;
+    using Ocelot.Configuration.File;
+    using System;
+    using System.Collections.Generic;
+    using System.IO;
+    using System.Net;
+    using System.Security.Claims;
+    using TestStack.BDDfy;
+    using Xunit;
 
     public class AuthorisationTests : IDisposable
     {
-        private IWebHost _servicebuilder;
         private IWebHost _identityServerBuilder;
         private readonly Steps _steps;
-        private Action<IdentityServerAuthenticationOptions> _options;
+        private readonly Action<IdentityServerAuthenticationOptions> _options;
         private string _identityServerRootUrl = "http://localhost:51888";
+        private readonly ServiceHandler _serviceHandler;
 
         public AuthorisationTests()
         {
+            _serviceHandler = new ServiceHandler();
             _steps = new Steps();
             _options = o =>
             {
@@ -42,16 +41,24 @@ namespace Ocelot.AcceptanceTests
         [Fact]
         public void should_return_response_200_authorising_route()
         {
-           var configuration = new FileConfiguration
-           {
-               ReRoutes = new List<FileReRoute>
+            int port = 52875;
+
+            var configuration = new FileConfiguration
+            {
+                ReRoutes = new List<FileReRoute>
                    {
                        new FileReRoute
                        {
                            DownstreamPathTemplate = "/",
-                           DownstreamPort = 51876,
+                           DownstreamHostAndPorts = new List<FileHostAndPort>
+                           {
+                               new FileHostAndPort
+                               {
+                                   Host = "localhost",
+                                   Port = port,
+                               }
+                           },
                            DownstreamScheme = "http",
-                           DownstreamHost = "localhost",
                            UpstreamPathTemplate = "/",
                            UpstreamHttpMethod = new List<string> { "Get" },
                            AuthenticationOptions = new FileAuthenticationOptions
@@ -77,33 +84,41 @@ namespace Ocelot.AcceptanceTests
                            }
                        }
                    }
-           };
+            };
 
-           this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:51888", "api", AccessTokenType.Jwt))
-               .And(x => x.GivenThereIsAServiceRunningOn("http://localhost:51876", 200, "Hello from Laura"))
-               .And(x => _steps.GivenIHaveAToken("http://localhost:51888"))
-               .And(x => _steps.GivenThereIsAConfiguration(configuration))
-               .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
-               .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
-               .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
-               .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.OK))
-               .And(x => _steps.ThenTheResponseBodyShouldBe("Hello from Laura"))
-               .BDDfy();
+            this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:51888", "api", AccessTokenType.Jwt))
+                .And(x => x.GivenThereIsAServiceRunningOn($"http://localhost:{port}", 200, "Hello from Laura"))
+                .And(x => _steps.GivenIHaveAToken("http://localhost:51888"))
+                .And(x => _steps.GivenThereIsAConfiguration(configuration))
+                .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
+                .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
+                .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
+                .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.OK))
+                .And(x => _steps.ThenTheResponseBodyShouldBe("Hello from Laura"))
+                .BDDfy();
         }
 
         [Fact]
         public void should_return_response_403_authorising_route()
         {
-           var configuration = new FileConfiguration
-           {
-               ReRoutes = new List<FileReRoute>
+            int port = 59471;
+
+            var configuration = new FileConfiguration
+            {
+                ReRoutes = new List<FileReRoute>
                    {
                        new FileReRoute
                        {
                            DownstreamPathTemplate = "/",
-                           DownstreamPort = 51876,
+                           DownstreamHostAndPorts = new List<FileHostAndPort>
+                           {
+                               new FileHostAndPort
+                               {
+                                   Host = "localhost",
+                                   Port = port,
+                               }
+                           },
                            DownstreamScheme = "http",
-                           DownstreamHost = "localhost",
                            UpstreamPathTemplate = "/",
                            UpstreamHttpMethod = new List<string> { "Get" },
                            AuthenticationOptions = new FileAuthenticationOptions
@@ -128,108 +143,174 @@ namespace Ocelot.AcceptanceTests
                            }
                        }
                    }
-           };
+            };
 
-           this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:51888", "api", AccessTokenType.Jwt))
-               .And(x => x.GivenThereIsAServiceRunningOn("http://localhost:51876", 200, "Hello from Laura"))
-               .And(x => _steps.GivenIHaveAToken("http://localhost:51888"))
-               .And(x => _steps.GivenThereIsAConfiguration(configuration))
-               .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
-               .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
-               .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
-               .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.Forbidden))
-               .BDDfy();
+            this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:51888", "api", AccessTokenType.Jwt))
+                .And(x => x.GivenThereIsAServiceRunningOn($"http://localhost:{port}", 200, "Hello from Laura"))
+                .And(x => _steps.GivenIHaveAToken("http://localhost:51888"))
+                .And(x => _steps.GivenThereIsAConfiguration(configuration))
+                .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
+                .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
+                .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
+                .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.Forbidden))
+                .BDDfy();
         }
 
         [Fact]
         public void should_return_response_200_using_identity_server_with_allowed_scope()
         {
-           var configuration = new FileConfiguration
-           {   
-               ReRoutes = new List<FileReRoute>
+            int port = 63471;
+
+            var configuration = new FileConfiguration
+            {
+                ReRoutes = new List<FileReRoute>
                    {
                        new FileReRoute
                        {
                            DownstreamPathTemplate = "/",
-                           DownstreamPort = 51876,
-                           DownstreamHost = "localhost",
+                           DownstreamHostAndPorts = new List<FileHostAndPort>
+                           {
+                               new FileHostAndPort
+                               {
+                                   Host = "localhost",
+                                   Port = port,
+                               }
+                           },
                            DownstreamScheme = "http",
                            UpstreamPathTemplate = "/",
                            UpstreamHttpMethod = new List<string> { "Get" },
                            AuthenticationOptions = new FileAuthenticationOptions
                            {
                                AuthenticationProviderKey = "Test",
-                               AllowedScopes =  new List<string>{ "api", "api.readOnly", "openid", "offline_access" },
+                               AllowedScopes = new List<string>{ "api", "api.readOnly", "openid", "offline_access" },
                            },
                        }
                    }
-           };
+            };
 
-           this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:51888", "api", AccessTokenType.Jwt))
-               .And(x => x.GivenThereIsAServiceRunningOn("http://localhost:51876", 200, "Hello from Laura"))
-               .And(x => _steps.GivenIHaveATokenForApiReadOnlyScope("http://localhost:51888"))
-               .And(x => _steps.GivenThereIsAConfiguration(configuration))
-               .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
-               .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
-               .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
-               .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.OK))
-               .BDDfy();
+            this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:51888", "api", AccessTokenType.Jwt))
+                .And(x => x.GivenThereIsAServiceRunningOn($"http://localhost:{port}", 200, "Hello from Laura"))
+                .And(x => _steps.GivenIHaveATokenForApiReadOnlyScope("http://localhost:51888"))
+                .And(x => _steps.GivenThereIsAConfiguration(configuration))
+                .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
+                .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
+                .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
+                .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.OK))
+                .BDDfy();
         }
 
         [Fact]
         public void should_return_response_403_using_identity_server_with_scope_not_allowed()
         {
-           var configuration = new FileConfiguration
-           {
-               ReRoutes = new List<FileReRoute>
+            int port = 60571;
+
+            var configuration = new FileConfiguration
+            {
+                ReRoutes = new List<FileReRoute>
                    {
                        new FileReRoute
                        {
                            DownstreamPathTemplate = "/",
-                           DownstreamPort = 51876,
-                           DownstreamHost = "localhost",
+                           DownstreamHostAndPorts = new List<FileHostAndPort>
+                           {
+                               new FileHostAndPort
+                               {
+                                   Host = "localhost",
+                                   Port = port,
+                               }
+                           },
                            DownstreamScheme = "http",
                            UpstreamPathTemplate = "/",
                            UpstreamHttpMethod = new List<string> { "Get" },
                            AuthenticationOptions = new FileAuthenticationOptions
                            {
                                AuthenticationProviderKey = "Test",
-                               AllowedScopes =  new List<string>{ "api", "openid", "offline_access" },
+                               AllowedScopes = new List<string>{ "api", "openid", "offline_access" },
                            },
                        }
                    }
-           };
+            };
 
-           this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:51888", "api", AccessTokenType.Jwt))
-               .And(x => x.GivenThereIsAServiceRunningOn("http://localhost:51876", 200, "Hello from Laura"))
-               .And(x => _steps.GivenIHaveATokenForApiReadOnlyScope("http://localhost:51888"))
-               .And(x => _steps.GivenThereIsAConfiguration(configuration))
-               .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
-               .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
-               .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
-               .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.Forbidden))
-               .BDDfy();
+            this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:51888", "api", AccessTokenType.Jwt))
+                .And(x => x.GivenThereIsAServiceRunningOn($"http://localhost:{port}", 200, "Hello from Laura"))
+                .And(x => _steps.GivenIHaveATokenForApiReadOnlyScope("http://localhost:51888"))
+                .And(x => _steps.GivenThereIsAConfiguration(configuration))
+                .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
+                .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
+                .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
+                .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.Forbidden))
+                .BDDfy();
+        }
+
+        [Fact]
+        public void should_fix_issue_240()
+        {
+            int port = 61071;
+
+            var configuration = new FileConfiguration
+            {
+                ReRoutes = new List<FileReRoute>
+                   {
+                       new FileReRoute
+                       {
+                           DownstreamPathTemplate = "/",
+                           DownstreamHostAndPorts = new List<FileHostAndPort>
+                           {
+                               new FileHostAndPort
+                               {
+                                   Host = "localhost",
+                                   Port = port,
+                               }
+                           },
+                           DownstreamScheme = "http",
+                           UpstreamPathTemplate = "/",
+                           UpstreamHttpMethod = new List<string> { "Get" },
+                           AuthenticationOptions = new FileAuthenticationOptions
+                           {
+                               AuthenticationProviderKey = "Test"
+                           },
+                           RouteClaimsRequirement =
+                           {
+                               {"Role", "User"}
+                           }
+                       }
+                   }
+            };
+
+            var users = new List<TestUser>
+            {
+                new TestUser
+                {
+                    Username = "test",
+                    Password = "test",
+                    SubjectId = "registered|1231231",
+                    Claims = new List<Claim>
+                    {
+                        new Claim("Role", "AdminUser"),
+                        new Claim("Role", "User")
+                    },
+                }
+            };
+
+            this.Given(x => x.GivenThereIsAnIdentityServerOn("http://localhost:51888", "api", AccessTokenType.Jwt, users))
+                .And(x => x.GivenThereIsAServiceRunningOn($"http://localhost:{port}", 200, "Hello from Laura"))
+                .And(x => _steps.GivenIHaveAToken("http://localhost:51888"))
+                .And(x => _steps.GivenThereIsAConfiguration(configuration))
+                .And(x => _steps.GivenOcelotIsRunning(_options, "Test"))
+                .And(x => _steps.GivenIHaveAddedATokenToMyRequest())
+                .When(x => _steps.WhenIGetUrlOnTheApiGateway("/"))
+                .Then(x => _steps.ThenTheStatusCodeShouldBe(HttpStatusCode.OK))
+                .And(x => _steps.ThenTheResponseBodyShouldBe("Hello from Laura"))
+                .BDDfy();
         }
 
         private void GivenThereIsAServiceRunningOn(string url, int statusCode, string responseBody)
         {
-            _servicebuilder = new WebHostBuilder()
-                .UseUrls(url)
-                .UseKestrel()
-                .UseContentRoot(Directory.GetCurrentDirectory())
-                .UseIISIntegration()
-                .UseUrls(url)
-                .Configure(app =>
-                {
-                    app.Run(async context =>
-                    {
-                        context.Response.StatusCode = statusCode;
-                        await context.Response.WriteAsync(responseBody);
-                    });
-                })
-                .Build();
-
-            _servicebuilder.Start();
+            _serviceHandler.GivenThereIsAServiceRunningOn(url, async context =>
+            {
+                context.Response.StatusCode = statusCode;
+                await context.Response.WriteAsync(responseBody);
+            });
         }
 
         private void GivenThereIsAnIdentityServerOn(string url, string apiName, AccessTokenType tokenType)
@@ -272,7 +353,6 @@ namespace Ocelot.AcceptanceTests
                                     "CustomerId", "LocationId", "UserType", "UserId"
                                 }
                             },
-
                         })
                         .AddInMemoryClients(new List<Client>
                         {
@@ -311,12 +391,78 @@ namespace Ocelot.AcceptanceTests
             _identityServerBuilder.Start();
 
             _steps.VerifyIdentiryServerStarted(url);
+        }
 
+        private void GivenThereIsAnIdentityServerOn(string url, string apiName, AccessTokenType tokenType, List<TestUser> users)
+        {
+            _identityServerBuilder = new WebHostBuilder()
+                .UseUrls(url)
+                .UseKestrel()
+                .UseContentRoot(Directory.GetCurrentDirectory())
+                .UseIISIntegration()
+                .UseUrls(url)
+                .ConfigureServices(services =>
+                {
+                    services.AddLogging();
+                    services.AddIdentityServer()
+                        .AddDeveloperSigningCredential()
+                        .AddInMemoryApiResources(new List<ApiResource>
+                        {
+                            new ApiResource
+                            {
+                                Name = apiName,
+                                Description = "My API",
+                                Enabled = true,
+                                DisplayName = "test",
+                                Scopes = new List<Scope>()
+                                {
+                                    new Scope("api"),
+                                    new Scope("api.readOnly"),
+                                    new Scope("openid"),
+                                    new Scope("offline_access"),
+                                },
+                                ApiSecrets = new List<Secret>()
+                                {
+                                    new Secret
+                                    {
+                                        Value = "secret".Sha256()
+                                    }
+                                },
+                                UserClaims = new List<string>()
+                                {
+                                    "CustomerId", "LocationId", "UserType", "UserId", "Role"
+                                }
+                            },
+                        })
+                        .AddInMemoryClients(new List<Client>
+                        {
+                            new Client
+                            {
+                                ClientId = "client",
+                                AllowedGrantTypes = GrantTypes.ResourceOwnerPassword,
+                                ClientSecrets = new List<Secret> {new Secret("secret".Sha256())},
+                                AllowedScopes = new List<string> { apiName, "api.readOnly", "openid", "offline_access" },
+                                AccessTokenType = tokenType,
+                                Enabled = true,
+                                RequireClientSecret = false,
+                            }
+                        })
+                        .AddTestUsers(users);
+                })
+                .Configure(app =>
+                {
+                    app.UseIdentityServer();
+                })
+                .Build();
+
+            _identityServerBuilder.Start();
+
+            _steps.VerifyIdentiryServerStarted(url);
         }
 
         public void Dispose()
         {
-            _servicebuilder?.Dispose();
+            _serviceHandler?.Dispose();
             _steps.Dispose();
             _identityServerBuilder?.Dispose();
         }

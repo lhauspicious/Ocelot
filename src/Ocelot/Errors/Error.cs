@@ -1,6 +1,6 @@
 namespace Ocelot.Errors
 {
-    public abstract class Error 
+    public abstract class Error
     {
         protected Error(string message, OcelotErrorCode code)
         {
@@ -10,5 +10,10 @@ namespace Ocelot.Errors
 
         public string Message { get; private set; }
         public OcelotErrorCode Code { get; private set; }
+
+        public override string ToString()
+        {
+            return Message;
+        }
     }
 }

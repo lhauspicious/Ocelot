@@ -1,48 +1,40 @@
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
-using Ocelot.Infrastructure.RequestData;
 using Ocelot.Logging;
 using Ocelot.Middleware;
+using System.Threading.Tasks;
 
 namespace Ocelot.Requester.Middleware
 {
     public class HttpRequesterMiddleware : OcelotMiddleware
     {
-        private readonly RequestDelegate _next;
+        private readonly OcelotRequestDelegate _next;
         private readonly IHttpRequester _requester;
-        private readonly IOcelotLogger _logger;
 
-        public HttpRequesterMiddleware(RequestDelegate next,
+        public HttpRequesterMiddleware(OcelotRequestDelegate next,
             IOcelotLoggerFactory loggerFactory,
-            IHttpRequester requester, 
-            IRequestScopedDataRepository requestScopedDataRepository)
-            :base(requestScopedDataRepository)
+            IHttpRequester requester)
+                : base(loggerFactory.CreateLogger<HttpRequesterMiddleware>())
         {
             _next = next;
             _requester = requester;
-            _logger = loggerFactory.CreateLogger<HttpRequesterMiddleware>();
         }
 
-        public async Task Invoke(HttpContext context)
+        public async Task Invoke(DownstreamContext context)
         {
-            _logger.LogDebug("started calling requester middleware");
-
-            var response = await _requester.GetResponse(Request);
+            var response = await _requester.GetResponse(context);
 
             if (response.IsError)
             {
-                _logger.LogDebug("IHttpRequester returned an error, setting pipeline error");
+                Logger.LogDebug("IHttpRequester returned an error, setting pipeline error");
 
-                SetPipelineError(response.Errors);
+                SetPipelineError(context, response.Errors);
                 return;
             }
 
-            _logger.LogDebug("setting http response message");
+            Logger.LogDebug("setting http response message");
 
-            SetHttpResponseMessageThisRequest(response.Data);
+            context.DownstreamResponse = new DownstreamResponse(response.Data);
 
-            _logger.LogDebug("returning to calling middleware");
+            await _next.Invoke(context);
         }
     }
 }

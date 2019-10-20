@@ -1,22 +1,20 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Ocelot.Configuration.File;
-using TestStack.BDDfy;
-using Xunit;
-
-namespace Ocelot.AcceptanceTests
+﻿namespace Ocelot.AcceptanceTests
 {
+    using Ocelot.Configuration.File;
+    using System;
+    using System.Collections.Generic;
+    using System.Net;
+    using TestStack.BDDfy;
+    using Xunit;
+
     public class ReturnsErrorTests : IDisposable
     {
-        private IWebHost _servicebuilder;
         private readonly Steps _steps;
+        private readonly ServiceHandler _serviceHandler;
 
         public ReturnsErrorTests()
         {
+            _serviceHandler = new ServiceHandler();
             _steps = new Steps();
         }
 
@@ -32,9 +30,15 @@ namespace Ocelot.AcceptanceTests
                             DownstreamPathTemplate = "/",
                             UpstreamPathTemplate = "/",
                             UpstreamHttpMethod = new List<string> { "Get" },
-                            DownstreamPort = 53876,
+                            DownstreamHostAndPorts = new List<FileHostAndPort>
+                            {
+                                new FileHostAndPort
+                                {
+                                    Host = "localhost",
+                                    Port = 53876,
+                                }
+                            },
                             DownstreamScheme = "http",
-                            DownstreamHost = "localhost"
                         }
                     }
             };
@@ -49,27 +53,12 @@ namespace Ocelot.AcceptanceTests
 
         private void GivenThereIsAServiceRunningOn(string url)
         {
-            _servicebuilder = new WebHostBuilder()
-                .UseUrls(url)
-                .UseKestrel()
-                .UseContentRoot(Directory.GetCurrentDirectory())
-                .UseIISIntegration()
-                .UseUrls(url)
-                .Configure(app =>
-                {
-                    app.Run(context =>
-                    {
-                        throw new Exception("BLAMMMM");
-                    });
-                })
-                .Build();
-
-            _servicebuilder.Start();
+            _serviceHandler.GivenThereIsAServiceRunningOn(url, context => throw new Exception("BLAMMMM"));
         }
 
         public void Dispose()
         {
-            _servicebuilder?.Dispose();
+            _serviceHandler?.Dispose();
             _steps.Dispose();
         }
     }

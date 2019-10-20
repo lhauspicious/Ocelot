@@ -1,13 +1,13 @@
-using Xunit;
-using Shouldly;
-using Ocelot.Authorisation;
-using Ocelot.Infrastructure.Claims.Parser;
 using Moq;
+using Ocelot.Authorisation;
+using Ocelot.Errors;
+using Ocelot.Infrastructure.Claims.Parser;
+using Ocelot.Responses;
+using Shouldly;
 using System.Collections.Generic;
 using System.Security.Claims;
-using Ocelot.Responses;
 using TestStack.BDDfy;
-using Ocelot.Errors;
+using Xunit;
 
 namespace Ocelot.UnitTests.Infrastructure
 {
@@ -35,7 +35,6 @@ namespace Ocelot.UnitTests.Infrastructure
             .BDDfy();
         }
 
-
         [Fact]
         public void should_return_ok_if_null_allowed_scopes()
         {
@@ -52,7 +51,7 @@ namespace Ocelot.UnitTests.Infrastructure
             var fakeError = new FakeError();
             this.Given(_ => GivenTheFollowing(new ClaimsPrincipal()))
             .And(_ => GivenTheParserReturns(new ErrorResponse<List<string>>(fakeError)))
-            .And(_ => GivenTheFollowing(new List<string>(){"doesntmatter"}))
+            .And(_ => GivenTheFollowing(new List<string>() { "doesntmatter" }))
             .When(_ => WhenIAuthorise())
             .Then(_ => ThenTheFollowingIsReturned(new ErrorResponse<bool>(fakeError)))
             .BDDfy();
@@ -62,7 +61,7 @@ namespace Ocelot.UnitTests.Infrastructure
         public void should_match_scopes_and_return_ok_result()
         {
             var claimsPrincipal = new ClaimsPrincipal();
-            var allowedScopes = new List<string>(){"someScope"};
+            var allowedScopes = new List<string>() { "someScope" };
 
             this.Given(_ => GivenTheFollowing(claimsPrincipal))
             .And(_ => GivenTheParserReturns(new OkResponse<List<string>>(allowedScopes)))
@@ -77,8 +76,8 @@ namespace Ocelot.UnitTests.Infrastructure
         {
             var fakeError = new FakeError();
             var claimsPrincipal = new ClaimsPrincipal();
-            var allowedScopes = new List<string>(){"someScope"};
-            var userScopes = new List<string>(){"anotherScope"};
+            var allowedScopes = new List<string>() { "someScope" };
+            var userScopes = new List<string>() { "anotherScope" };
 
             this.Given(_ => GivenTheFollowing(claimsPrincipal))
             .And(_ => GivenTheParserReturns(new OkResponse<List<string>>(userScopes)))
@@ -115,10 +114,10 @@ namespace Ocelot.UnitTests.Infrastructure
         }
     }
 
-      public class FakeError : Error
+    public class FakeError : Error
+    {
+        public FakeError() : base("fake error", OcelotErrorCode.CannotAddDataError)
         {
-            public FakeError() : base("fake error", OcelotErrorCode.CannotAddDataError)
-            {
-            }
         }
+    }
 }
